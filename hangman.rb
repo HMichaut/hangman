@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-# Importing the unit test library
-require 'test/unit/assertions'
-include Test::Unit::Assertions
+require 'yaml'
 
 # class representing a game of hangman
 class HangmanGame
@@ -11,6 +9,7 @@ class HangmanGame
     @min_word_length = min_word_length
     @max_word_length = max_word_length
     @game_turns = game_turns
+    @iteration = 0
     @source_dictionary = File.open('5desk.txt').readlines
     @secret_word_array = select_secret_word(@min_word_length, @max_word_length, @source_dictionary)
     @secret_word_shielded_array = shield_word(@secret_word_array)
@@ -53,8 +52,9 @@ class HangmanGame
   def player_choice_acquisition
     user_input = nil
     until ('a'..'z').include?(user_input)
-      puts 'Input your choosen downcase letter:'
+      puts 'Input your choosen downcase letter or save:'
       user_input = gets.chomp
+      open('hangman.yaml', 'w') { |f| YAML.dump(self, f) } if user_input == 'save'
     end
     user_input
   end
@@ -85,13 +85,11 @@ class HangmanGame
 
   # Main game loop
   def game_loop
-    iteration = 0
+    while @iteration <= @game_turns
 
-    while iteration <= @game_turns
+      puts "You have #{@game_turns - @iteration} remaining guesses."
 
-      puts "You have #{@game_turns - iteration} remaining guesses."
-
-      break if no_more_iteration?(iteration, @game_turns)
+      break if no_more_iteration?(@iteration, @game_turns)
 
       saved_secret_word_shielded_array = @secret_word_shielded_array.dup
       puts @secret_word_shielded_array.join(' ')
@@ -99,25 +97,25 @@ class HangmanGame
 
       break if game_won?(@secret_word_shielded_array, @secret_word_array)
 
-      iteration += 1 if saved_secret_word_shielded_array == @secret_word_shielded_array
+      @iteration += 1 if saved_secret_word_shielded_array == @secret_word_shielded_array
     end
   end
 end
 
-new_game = HangmanGame.new(5, 12, 6)
-new_game.game_loop
+# Select new game or load previous game
+def new_game_or_load
+  user_input = nil
+  until %w[y n].include?(user_input)
+    puts 'Load saved game? y / n'
+    user_input = gets.chomp
+    if user_input == 'y'
+      loaded_game = open('hangman.yaml', 'r') { |f| YAML.safe_load(f, [HangmanGame]) }
+      loaded_game.game_loop
+    else
+      new_game = HangmanGame.new(5, 12, 6)
+      new_game.game_loop
+    end
+  end
+end
 
-# Unit tests
-assert_equal new_game.no_more_iteration?(3, 3), true
-assert_equal new_game.no_more_iteration?(2, 3), false
-
-assert_equal new_game.game_won?(%w[r a i n], %w[r a i n]), true
-assert_equal new_game.game_won?(%w[r a i n], %w[r _ i _]), false
-
-assert_equal new_game.select_secret_word(3, 5, %w[abracadabra raining dreaming life]), %w[l i f e]
-
-assert_equal new_game.shield_word(%w[a b r a c a d a b r a]), %w[_ _ _ _ _ _ _ _ _ _ _]
-assert_equal new_game.shield_word(%w[r a i n]), %w[_ _ _ _]
-
-assert_equal new_game.guess('a', %w[a b r a c a d a b r a], %w[_ b _ _ c _ d _ b _ _]), %w[a b _ a c a d a b _ a]
-assert_equal new_game.guess('n', %w[r a i n], %w[r _ _ _]), %w[r _ _ n]
+new_game_or_load
